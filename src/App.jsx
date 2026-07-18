@@ -3,6 +3,36 @@ import { useState, useMemo } from "react";
 const USERNAME_RE = /^[a-zA-Z0-9_]{3,20}$/;
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
+function validateUsername(value) {
+  if (!value) return "Username is required.";
+  if (!USERNAME_RE.test(value)) {
+    return "3–20 characters, letters, numbers, and underscores only.";
+  }
+  return null;
+}
+
+function validateEmail(value) {
+  if (!value) return "Email is required.";
+  if (!EMAIL_RE.test(value)) return "Enter a valid email address.";
+  return null;
+}
+
+function validatePassword(value) {
+  if (!value) return "Password is required.";
+  if (value.length < 8) return "Must be at least 8 characters.";
+  if (!/[A-Z]/.test(value)) return "Must include an uppercase letter.";
+  if (!/[a-z]/.test(value)) return "Must include a lowercase letter.";
+  if (!/\d/.test(value)) return "Must include a number.";
+  if (!/[^A-Za-z0-9]/.test(value)) return "Must include a special character.";
+  return null;
+}
+
+function validateConfirmPassword(value, password) {
+  if (!value) return "Confirm your password.";
+  if (value !== password) return "Passwords don't match.";
+  return null;
+}
+
 function getPasswordStrength(password) {
   if (!password) return 0;
   let score = 0;
@@ -33,48 +63,30 @@ export default function UserSettingsForm() {
   const [touched, setTouched] = useState({});
   const [submitted, setSubmitted] = useState(false);
 
+  const errors = useMemo(
+    () => ({
+      username: validateUsername(values.username),
+      email: validateEmail(values.email),
+      password: validatePassword(values.password),
+      confirmPassword: validateConfirmPassword(
+        values.confirmPassword,
+        values.password
+      ),
+    }),
+    [values]
+  );
+
   const strength = useMemo(
     () => getPasswordStrength(values.password),
     [values.password]
   );
 
-  const errors = useMemo(() => {
-    const e = {};
-
-    if (!values.username) {
-      e.username = "Username is required.";
-    } else if (!USERNAME_RE.test(values.username)) {
-      e.username =
-        "3–20 characters, letters, numbers, and underscores only.";
-    }
-
-    if (!values.email) {
-      e.email = "Email is required.";
-    } else if (!EMAIL_RE.test(values.email)) {
-      e.email = "Enter a valid email address.";
-    }
-
-    if (!values.password) {
-      e.password = "Password is required.";
-    } else if (values.password.length < 8) {
-      e.password = "Password must be at least 8 characters.";
-    }
-
-    if (!values.confirmPassword) {
-      e.confirmPassword = "Confirm your password.";
-    } else if (values.confirmPassword !== values.password) {
-      e.confirmPassword = "Passwords don't match.";
-    }
-
-    return e;
-  }, [values]);
-
-  const isValid = Object.keys(errors).length === 0;
+  const isValid = Object.values(errors).every((e) => e === null);
 
   function handleChange(field) {
     return (event) => {
       setValues((prev) => ({ ...prev, [field]: event.target.value }));
-      setSubmitted(false);
+      if (submitted) setSubmitted(false);
     };
   }
 
@@ -90,13 +102,19 @@ export default function UserSettingsForm() {
       password: true,
       confirmPassword: true,
     });
-    if (isValid) {
-      setSubmitted(true);
-    }
+    if (isValid) setSubmitted(true);
   }
 
   function showError(field) {
-    return touched[field] && errors[field];
+    return Boolean(touched[field] && errors[field]);
+  }
+
+  function inputClasses(field) {
+    const base =
+      "w-full h-10 px-3 rounded-lg border text-sm text-slate-800 placeholder-slate-400 outline-none transition focus:ring-2";
+    return showError(field)
+      ? `${base} border-rose-400 focus:border-rose-500 focus:ring-rose-100`
+      : `${base} border-slate-300 focus:border-teal-600 focus:ring-teal-100`;
   }
 
   return (
@@ -109,6 +127,27 @@ export default function UserSettingsForm() {
           Update your username, email, and password.
         </p>
       </div>
+
+      {submitted && (
+        <div
+          role="status"
+          className="mb-5 flex items-center gap-2 rounded-lg bg-teal-50 border border-teal-200 px-4 py-3 text-sm text-teal-800"
+        >
+          <svg
+            className="w-4 h-4 flex-shrink-0"
+            viewBox="0 0 20 20"
+            fill="currentColor"
+            aria-hidden="true"
+          >
+            <path
+              fillRule="evenodd"
+              d="M16.7 5.3a1 1 0 010 1.4l-8 8a1 1 0 01-1.4 0l-4-4a1 1 0 111.4-1.4L8 12.6l7.3-7.3a1 1 0 011.4 0z"
+              clipRule="evenodd"
+            />
+          </svg>
+          Settings saved.
+        </div>
+      )}
 
       <form onSubmit={handleSubmit} noValidate className="space-y-5">
         {/* Username */}
@@ -126,16 +165,12 @@ export default function UserSettingsForm() {
             onChange={handleChange("username")}
             onBlur={handleBlur("username")}
             placeholder="jane_doe"
-            className={`w-full h-10 px-3 rounded-lg border text-sm text-slate-800 placeholder-slate-400 outline-none transition focus:ring-2 focus:ring-teal-100 ${
-              showError("username")
-                ? "border-rose-400 focus:border-rose-500"
-                : "border-slate-300 focus:border-teal-600"
-            }`}
-            aria-invalid={Boolean(showError("username"))}
-            aria-describedby="username-error"
+            className={inputClasses("username")}
+            aria-invalid={showError("username")}
+            aria-describedby={showError("username") ? "username-error" : undefined}
           />
           {showError("username") && (
-            <p id="username-error" className="mt-1.5 text-xs text-rose-600">
+            <p id="username-error" role="alert" className="mt-1.5 text-xs text-rose-600">
               {errors.username}
             </p>
           )}
@@ -156,16 +191,12 @@ export default function UserSettingsForm() {
             onChange={handleChange("email")}
             onBlur={handleBlur("email")}
             placeholder="jane@company.com"
-            className={`w-full h-10 px-3 rounded-lg border text-sm text-slate-800 placeholder-slate-400 outline-none transition focus:ring-2 focus:ring-teal-100 ${
-              showError("email")
-                ? "border-rose-400 focus:border-rose-500"
-                : "border-slate-300 focus:border-teal-600"
-            }`}
-            aria-invalid={Boolean(showError("email"))}
-            aria-describedby="email-error"
+            className={inputClasses("email")}
+            aria-invalid={showError("email")}
+            aria-describedby={showError("email") ? "email-error" : undefined}
           />
           {showError("email") && (
-            <p id="email-error" className="mt-1.5 text-xs text-rose-600">
+            <p id="email-error" role="alert" className="mt-1.5 text-xs text-rose-600">
               {errors.email}
             </p>
           )}
@@ -186,19 +217,17 @@ export default function UserSettingsForm() {
             onChange={handleChange("password")}
             onBlur={handleBlur("password")}
             placeholder="At least 8 characters"
-            className={`w-full h-10 px-3 rounded-lg border text-sm text-slate-800 placeholder-slate-400 outline-none transition focus:ring-2 focus:ring-teal-100 ${
-              showError("password")
-                ? "border-rose-400 focus:border-rose-500"
-                : "border-slate-300 focus:border-teal-600"
-            }`}
-            aria-invalid={Boolean(showError("password"))}
-            aria-describedby="password-error"
+            className={inputClasses("password")}
+            aria-invalid={showError("password")}
+            aria-describedby={showError("password") ? "password-error" : undefined}
           />
 
-          {/* Strength meter */}
           {values.password && (
-            <div className="mt-2 flex items-center gap-2">
-              <div className="flex gap-1 flex-1">
+            <div
+              className="mt-2 flex items-center gap-2"
+              aria-live="polite"
+            >
+              <div className="flex gap-1 flex-1" aria-hidden="true">
                 {[0, 1, 2, 3].map((i) => (
                   <div
                     key={i}
@@ -215,7 +244,7 @@ export default function UserSettingsForm() {
           )}
 
           {showError("password") && (
-            <p id="password-error" className="mt-1.5 text-xs text-rose-600">
+            <p id="password-error" role="alert" className="mt-1.5 text-xs text-rose-600">
               {errors.password}
             </p>
           )}
@@ -236,17 +265,16 @@ export default function UserSettingsForm() {
             onChange={handleChange("confirmPassword")}
             onBlur={handleBlur("confirmPassword")}
             placeholder="Re-enter your password"
-            className={`w-full h-10 px-3 rounded-lg border text-sm text-slate-800 placeholder-slate-400 outline-none transition focus:ring-2 focus:ring-teal-100 ${
-              showError("confirmPassword")
-                ? "border-rose-400 focus:border-rose-500"
-                : "border-slate-300 focus:border-teal-600"
-            }`}
-            aria-invalid={Boolean(showError("confirmPassword"))}
-            aria-describedby="confirmPassword-error"
+            className={inputClasses("confirmPassword")}
+            aria-invalid={showError("confirmPassword")}
+            aria-describedby={
+              showError("confirmPassword") ? "confirmPassword-error" : undefined
+            }
           />
           {showError("confirmPassword") && (
             <p
               id="confirmPassword-error"
+              role="alert"
               className="mt-1.5 text-xs text-rose-600"
             >
               {errors.confirmPassword}
@@ -260,12 +288,6 @@ export default function UserSettingsForm() {
         >
           Save changes
         </button>
-
-        {submitted && (
-          <p className="text-sm text-teal-700 text-center">
-            Settings saved.
-          </p>
-        )}
       </form>
     </div>
   );
